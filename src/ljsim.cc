@@ -4,54 +4,76 @@
 
 #include "sim.h"
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     char delimiter = '=';
     Args cli_args;
-    for (int i = 1; i < argc; ++i) {
-        std::string arg (argv[i]);
+    for (int i = 1; i < argc; ++i)
+    {
+        std::string arg(argv[i]);
         std::string begin = arg.substr(0, 2);
-        if (begin != "--") {
+        if (begin != "--")
+        {
             std::cout << "Expect -- for each command line arg." << std::endl;
             return 1;
         }
         size_t delim_index = arg.find(delimiter);
-        if (delim_index == arg.npos) {
+        if (delim_index == arg.npos)
+        {
             std::cout << "Use --option=value for each command line arg." << std::endl;
             return 1;
-        } else {
+        }
+        else
+        {
             std::string arg_key = arg.substr(2, delim_index - 2);
             std::string arg_value = arg.substr(delim_index + 1);
-            if (arg_key == "num_particles") {
+            if (arg_key == "num_particles")
+            {
                 cli_args.num_particles = std::stoi(arg_value, nullptr);
-            } else if (arg_key == "box_dimension") {
+            }
+            else if (arg_key == "box_dimension")
+            {
                 cli_args.box_dimension = std::stof(arg_value, nullptr);
-            } else if (arg_key == "sigma") {
+            }
+            else if (arg_key == "sigma")
+            {
                 cli_args.sigma = std::stof(arg_value, nullptr);
-            } else if (arg_key == "epsilon") {
+            }
+            else if (arg_key == "epsilon")
+            {
                 cli_args.epsilon = std::stof(arg_value, nullptr);
-            } else if (arg_key == "temperature") {
+            }
+            else if (arg_key == "temperature")
+            {
                 cli_args.temperature = std::stof(arg_value, nullptr);
-            } else if (arg_key == "outdir") {
+            }
+            else if (arg_key == "outdir")
+            {
                 cli_args.outdir = arg_value;
-            } else {
+            }
+            else
+            {
                 std::cout << "Unrecognized arg: " << arg_key << std::endl;
             }
         }
     }
 
     // if number of particles not provided
-    if (cli_args.num_particles <= 0) {
+    if (cli_args.num_particles <= 0)
+    {
         std::cout << "Must provide --num_particles=N option where N is an integer greater than 0." << std::endl;
         return 1;
     }
-    
-    // if box dimension not provided 
-    if (cli_args.box_dimension == 0.0) {
+
+    // if box dimension not provided
+    if (cli_args.box_dimension == 0.0)
+    {
         cli_args.box_dimension = std::cbrt(cli_args.num_particles * cli_args.sigma);
     }
 
-    std::cout << "Final args\n";
-    std::cout << "----------\n";
+    std::cout << "+----------+\n";
+    std::cout << "|FINAL ARGS|\n";
+    std::cout << "+----------+\n";
     std::cout << "num_particles: " << cli_args.num_particles << '\n';
     std::cout << "box_dimension: " << cli_args.box_dimension << '\n';
     std::cout << "sigma: " << cli_args.sigma << '\n';
@@ -61,4 +83,3 @@ int main(int argc, char *argv[]) {
 
     return 0;
 };
-
