@@ -4,6 +4,7 @@
 #include <array>
 #include <string>
 #include <tuple>
+#include <vector>
 
 struct Args {
   int num_particles = 0;
@@ -17,30 +18,33 @@ struct Args {
 };
 
 struct Atom {
-  float x;
-  float y;
-  float z;
-  float vx;
-  float vy;
-  float vz;
-  float Fx;
-  float Fy;
-  float Fz;
+  int id;
+  float x = 0.0;
+  float y = 0.0;
+  float z = 0.0;
+  float vx = 0.0;
+  float vy = 0.0;
+  float vz = 0.0;
+  float Fx = 0.0;
+  float Fy = 0.0;
+  float Fz = 0.0;
 };
 
 float sqdist_atoms(Atom& a, Atom& b);
 
-std::tuple<float, std::array<float, 3>> lj_pot_force(Atom& a, Atom& b); // LJ 6-12 potential
+std::tuple<float, std::array<float, 3>> lj_pot_force(
+    Atom& a, Atom& b);  // LJ 6-12 potential
 
-template<int N>
 class System {
  public:
-  Atom atoms[N];
   Args opt;
+  std::vector<Atom> atoms;
+
+  System(Args& o);
 
   void init_pos();
-  void time_step();
-  void run_steps(int);
+  void init_vel();
+  float energy_forces();
 };
 
 #endif

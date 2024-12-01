@@ -63,6 +63,7 @@ int main(int argc, char *argv[]) {
     cli_args.box_dimension = std::cbrt(cli_args.num_particles * cli_args.sigma);
   }
 
+  /*
   std::cout << "+----------+\n";
   std::cout << "|FINAL ARGS|\n";
   std::cout << "+----------+\n";
@@ -73,6 +74,10 @@ int main(int argc, char *argv[]) {
   std::cout << "temperature: " << cli_args.temperature << '\n';
   std::cout << "mass: " << cli_args.mass << '\n';
   std::cout << "outdir: " << cli_args.outdir << std::endl;
+  */
+
+  System simul_system(cli_args);
+  simul_system.init_pos();
 
   return 0;
 };
