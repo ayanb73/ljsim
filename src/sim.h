@@ -2,6 +2,8 @@
 #define SIM_H
 
 #include <array>
+#include <string>
+#include <tuple>
 
 struct Args {
   int num_particles = 0;
@@ -21,13 +23,14 @@ struct Atom {
   float vx;
   float vy;
   float vz;
+  float Fx;
+  float Fy;
+  float Fz;
 };
 
-float dist_atoms(Atom& a, Atom& b); 
-float sqdist_atoms(Atom& a, Atom& b); 
-std::array<float, 2> dist_sqdist_atoms(Atom& a, Atom& b); 
+float sqdist_atoms(Atom& a, Atom& b);
 
-std::array<float, 2> lj_pot_force(Atom& a, Atom& b); // LJ 6-12 potential
+std::tuple<float, std::array<float, 3>> lj_pot_force(Atom& a, Atom& b); // LJ 6-12 potential
 
 template<int N>
 class System {

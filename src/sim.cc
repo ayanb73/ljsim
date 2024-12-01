@@ -1,38 +1,29 @@
 #include <cmath>
 #include <array>
 #include "sim.h"
-
-
-float dist_atoms(Atom& a, Atom& b) {
-  float sqdist = pow(a.x - b.x, 2) + pow(a.y - b.y, 2) + pow(a.z - b.z, 2);
-  float dist = sqrt(sqdist);
-  return dist;
-}
+#include <tuple>
 
 float sqdist_atoms(Atom& a, Atom& b) {
   float sqdist = pow(a.x - b.x, 2) + pow(a.y - b.y, 2) + pow(a.z - b.z, 2);
   return sqdist;
 }
 
-std::array<float, 2> dist_sqdist_atoms(Atom& a, Atom& b) {
-  float sqdist = pow(a.x - b.x, 2) + pow(a.y - b.y, 2) + pow(a.z - b.z, 2);
-  float dist = sqrt(sqdist);
-  std::array<float, 2> res = {{dist, sqdist}};
-  return res;
-}
+std::tuple<float, std::array<float, 3>> lj_pot_force(Atom& a, Atom& b) {
+  // returns the force vector {Fx, Fy, Fz} acting on atom a
+  // by newton's third law, atom b has the opposite force
 
-std::array<float, 2> lj_pot_force(Atom& a, Atom& b) {
-  // if the atoms are the same, zero
+  // if the atoms are the same, return zero
   if (&a == &b) {
-    return {{0.0, 0.0}};
+    return std::make_tuple(0.0, std::array<float, 3>{0.0, 0.0, 0.0});
   }
-  std::array<float, 2> d_sqd = dist_sqdist_atoms(a, b);
-  float c6 = 1 / pow(d_sqd[1], 3);
-  float c12 = pow(c6, 2);
-  float c13 = c12 / d_sqd[0];
-  float c7 = c6 / d_sqd[0];
-  float potE = 4 * (c12 - c6);
-  float force = 24 * c7 - 48 * c13;
+  float sqd = sqdist_atoms(a, b);
+  float r6 = 1 / pow(sqd, 3);
+  float r12 = pow(r6, 2);
+  float r14 = r12 / sqd;
+  float r8 = r6 / sqd;
+  float potE = 4 * (r12 - r6);
+  float force_prefactor = 24 * r8 - 48 * r14;
+  std::array<float, 3> force_vector = {force_prefactor * (a.x - b.x), force_prefactor * (a.y - b.y), force_prefactor * (a.z - b.z)};
 
-  return {{potE, force}};
+  return std::make_tuple(potE, force_vector);
 }
