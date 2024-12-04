@@ -78,6 +78,20 @@ int main(int argc, char *argv[]) {
 
   System simul_system(cli_args);
   simul_system.init_pos();
+  simul_system.init_vel();
+  simul_system.compute_potential_energy_and_forces();
+  simul_system.compute_kinetic_energy();
+
+  float dt = 4 * sqrt(simul_system.opt.epsilon) / simul_system.opt.sigma;
+  float h_dt = 0.5 * dt;
+  
+  for (int i = 0; i < simul_system.opt.num_steps; ++i) {
+    std::cout << "256\n";
+    for (Atom& a : simul_system.atoms) {
+      std::cout << "Ar " << a.x << " " << a.y << " " << a.z << " \n";
+    }
+    simul_system.step_forward(dt, h_dt);
+  }
 
   return 0;
 };

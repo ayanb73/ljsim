@@ -9,6 +9,7 @@
 
 System::System(Args& o) {
   opt = o;
+  opt.box_dimension = opt.box_dimension / opt.sigma; // reduced units
   for (int i = 0; i < o.num_particles; ++i) {
     Atom new_atom;
     new_atom.id = i;
@@ -128,9 +129,29 @@ void System::compute_potential_energy_and_forces() {
 
 void System::update_pos(float dt) {
   for (int i = 0; i < this->n_atoms; ++i) {
-    this->atoms.at(i).x += this->atoms.at(i).vx * dt;
-    this->atoms.at(i).y += this->atoms.at(i).vy * dt;
-    this->atoms.at(i).z += this->atoms.at(i).vz * dt;
+    float new_x = this->atoms.at(i).x + this->atoms.at(i).vx * dt;
+    if (new_x >= this->half_box) {
+      new_x = new_x - this->opt.box_dimension;
+    } else if (new_x <= -this->half_box) {
+      new_x = new_x + this->opt.box_dimension;
+    }
+    this->atoms.at(i).x = new_x;
+
+    float new_y = this->atoms.at(i).y + this->atoms.at(i).vy * dt;
+    if (new_y >= this->half_box) {
+      new_y = new_y - this->opt.box_dimension;
+    } else if (new_y <= -this->half_box) {
+      new_y = new_y + this->opt.box_dimension;
+    }
+    this->atoms.at(i).y = new_y;
+
+    float new_z = this->atoms.at(i).z + this->atoms.at(i).vz * dt;
+    if (new_z >= this->half_box) {
+      new_z = new_z - this->opt.box_dimension;
+    } else if (new_z <= -this->half_box) {
+      new_z = new_z + this->opt.box_dimension;
+    }
+    this->atoms.at(i).z = new_z;
   }
 }
 
@@ -152,9 +173,9 @@ void System::update_vel(float half_dt) {
     com_vz += this->atoms.at(i).vz;
   }
 
-  float com_vx = com_vx / this->n_atoms;
-  float com_vy = com_vy / this->n_atoms;
-  float com_vz = com_vz / this->n_atoms;
+  com_vx = com_vx / this->n_atoms;
+  com_vy = com_vy / this->n_atoms;
+  com_vz = com_vz / this->n_atoms;
 
   for (int i = 0; i < this->n_atoms; ++i) {
     this->atoms.at(i).vx -= com_vx;
