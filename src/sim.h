@@ -30,21 +30,28 @@ struct Atom {
   float Fz = 0.0;
 };
 
-float sqdist_atoms(Atom& a, Atom& b);
-
-std::tuple<float, std::array<float, 3>> lj_pot_force(
-    Atom& a, Atom& b);  // LJ 6-12 potential
-
 class System {
  public:
   Args opt;
   std::vector<Atom> atoms;
+  int n_atoms;
+  float potential_energy;
+  float kinetic_energy;
+  float half_box;
 
   System(Args& o);
-
   void init_pos();
   void init_vel();
-  float energy_forces();
+  
+  
+  void update_pos(float dt);
+  void update_vel(float half_dt);
+  std::tuple<float, std::array<float, 3>> lj_pot_force(
+    Atom& a, Atom& b);  // LJ 6-12 potential
+  void compute_potential_energy_and_forces();
+  void compute_kinetic_energy();
+
+  void step_forward(float dt, float half_dt);
 };
 
 #endif
