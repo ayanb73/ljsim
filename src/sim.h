@@ -9,11 +9,11 @@
 struct Args {
   int num_particles = 0;
   int num_steps = 0;
-  float box_dimension = 0.0;     // Angstroms
-  float sigma = 3.3713;          // Angstroms
-  float epsilon = 0.2261926386;  // kcal / mol
-  float temperature = 120.0;     // Kelvin
-  float mass = 39.948;           // g / mol
+  float box_dimension = 0.0;     // nm
+  float sigma = 0.33713;          // nm
+  float epsilon = 0.94639;  // kJ / mol
+  float temperature = 100.0;     // Kelvin
+  float mass = 39.948;           // amu
   std::string outdir = "ljsim_out";
 };
 
@@ -38,6 +38,9 @@ class System {
   float potential_energy;
   float kinetic_energy;
   float half_box;
+
+  float sigma_p12;
+  float sigma_p6;
 
   System(Args& o);
   void init_pos();

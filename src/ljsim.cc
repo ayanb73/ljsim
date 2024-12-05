@@ -1,6 +1,7 @@
 #include <cmath>
 #include <iostream>
 #include <string>
+#include <chrono>
 
 #include "sim.h"
 
@@ -63,18 +64,6 @@ int main(int argc, char *argv[]) {
     cli_args.box_dimension = std::cbrt(cli_args.num_particles * cli_args.sigma);
   }
 
-  /*
-  std::cout << "+----------+\n";
-  std::cout << "|FINAL ARGS|\n";
-  std::cout << "+----------+\n";
-  std::cout << "num_particles: " << cli_args.num_particles << '\n';
-  std::cout << "box_dimension: " << cli_args.box_dimension << '\n';
-  std::cout << "sigma: " << cli_args.sigma << '\n';
-  std::cout << "epsilon: " << cli_args.epsilon << '\n';
-  std::cout << "temperature: " << cli_args.temperature << '\n';
-  std::cout << "mass: " << cli_args.mass << '\n';
-  std::cout << "outdir: " << cli_args.outdir << std::endl;
-  */
 
   System simul_system(cli_args);
   simul_system.init_pos();
@@ -82,16 +71,18 @@ int main(int argc, char *argv[]) {
   simul_system.compute_potential_energy_and_forces();
   simul_system.compute_kinetic_energy();
 
-  float dt = 4 * sqrt(simul_system.opt.epsilon) / simul_system.opt.sigma;
+  float dt = 0.0025; // 2 fs
   float h_dt = 0.5 * dt;
-  
-  for (int i = 0; i < simul_system.opt.num_steps; ++i) {
-    std::cout << "256\n";
-    for (Atom& a : simul_system.atoms) {
-      std::cout << "Ar " << a.x << " " << a.y << " " << a.z << " \n";
-    }
+  std::cout << "time energy\n";
+  std::cout << "0" << " " << simul_system.potential_energy + simul_system.kinetic_energy << "\n";
+  auto begin = std::chrono::high_resolution_clock::now();
+  for (int i = 1; i <= simul_system.opt.num_steps; ++i) {
     simul_system.step_forward(dt, h_dt);
+    std::cout << i*dt << " " << simul_system.potential_energy + simul_system.kinetic_energy << "\n";
   }
+  auto end = std::chrono::high_resolution_clock::now();
+  auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
+  printf("Time measured: %.3f seconds.\n", elapsed.count() * 1e-9);
 
   return 0;
 };

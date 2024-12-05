@@ -1,3 +1,3 @@
 #!/bin/bash
 
-../ljsim --num_particles=256 --box_dimension=21.6 --num_steps=10 > out.dat
+../ljsim --num_particles=2 --box_dimension=3 --num_steps=1000
