@@ -14,39 +14,33 @@ System::System(Args& o) {
     new_atom.id = i;
     atoms.emplace_back(new_atom);
   }
-  n_atoms = atoms.size();
   half_box = opt.box_dimension / 2;
   sigma_p6 = pow(opt.sigma, 6);
-  sigma_p12 = pow(sigma_p6, 2);
+  sigma_p12 = pow(opt.sigma, 12);
 }
 
 std::tuple<float, std::array<float, 3>> System::lj_pot_force(Atom& a, Atom& b) {
   // returns the force vector {Fx, Fy, Fz} acting on atom a
   // by newton's third law, atom b has the opposite force
 
-  // if the atoms are the same, return zero
-  if (&a == &b || a.id == b.id) {
-    return std::make_tuple(0.0, std::array<float, 3>{0.0, 0.0, 0.0});
-  }
-  // calculate squared distance
-  // checking for minimum image
+  // calculate squared distance checking for minimum image
   float dx = a.x - b.x;
   float dy = a.y - b.y;
   float dz = a.z - b.z;
-  if (dx > half_box) {dx -= opt.box_dimension;} else if (dx <= -half_box) {dx += this->opt.box_dimension;}
-  if (dy > half_box) {dy -= opt.box_dimension;} else if (dy <= -half_box) {dy += this->opt.box_dimension;}
-  if (dz > half_box) {dz -= opt.box_dimension;} else if (dz <= -half_box) {dz += this->opt.box_dimension;}
+  if (dx > this->half_box) {dx -= opt.box_dimension;} else if (dx <= -this->half_box) {dx += this->opt.box_dimension;}
+  if (dy > this->half_box) {dy -= opt.box_dimension;} else if (dy <= -this->half_box) {dy += this->opt.box_dimension;}
+  if (dz > this->half_box) {dz -= opt.box_dimension;} else if (dz <= -this->half_box) {dz += this->opt.box_dimension;}
   
   
-  float sqd = pow(dx, 2) + pow(dy, 2) + pow(dz, 2);
+  float sqd = dx*dx + dy*dy + dz*dz;
 
   float r6 = pow(sqd, 3);
-  float r12 = pow(r6, 2);
+  float r12 = r6*r6;
   float c12 = this->sigma_p12 / r12;
   float c6 = this->sigma_p6 / r6;
   float potE = 4 * this->opt.epsilon * (c12 - c6);
-  float force_prefactor = 4 * this->opt.epsilon * (-12 * c12 + 6 * c6) / sqd;
-  std::array<float, 3> force_vector = {force_prefactor * (a.x - b.x), force_prefactor * (a.y - b.y), force_prefactor * (a.z - b.z)};
+  float force_prefactor = 24 * this->opt.epsilon * (2 * c12 - c6) / sqd;
+  std::array<float, 3> force_vector = {force_prefactor * dx, force_prefactor * dy, force_prefactor * dz};
 
   return std::make_tuple(potE, force_vector);
 }
@@ -82,7 +76,7 @@ void System::init_pos() {
 }
 
 void System::init_vel() {
-  // generating stuff randomly from the GROMACS algorithms
+  // generating approx maxwell-boltzmann velocities
   float var_mwb = sqrt(this->opt.temperature * 8.3144621e-3 / this->opt.mass);
   for (Atom& a : this->atoms) {
     for (int i = 0; i < 3; ++i) {
@@ -99,17 +93,14 @@ void System::init_vel() {
     }
 
   }
-  // fake update w/ zero forces to remove com motion
-  this->update_vel(0);
+
+  // remove com motion
+  this->zero_com_velocity();
 
   // compute effective temperature
-  float totE = 0;
-  for (Atom& a : this->atoms) {
-    totE += this->opt.mass * (pow(a.vx, 2) + pow(a.vy, 2) + pow(a.vz, 2));
-  }
-  totE = 0.5 * totE;
-  float eff_T = (2 * totE) / (3 * (this->opt.num_particles - 1) * 8.3144621e-3);
-  float correction_factor = this->opt.temperature / eff_T;
+  this->compute_kinetic_energy();
+  float target_E = 0.5 * 3 * (this->opt.num_particles - 1) * 8.3144621e-3 * this->opt.temperature;
+  float correction_factor = sqrt(target_E / this->kinetic_energy);
   
   // rescale to target temperature
   for (Atom& a : this->atoms) {
@@ -118,27 +109,33 @@ void System::init_vel() {
     a.vz = a.vz * correction_factor;
   }
 
+  // compute corrected temperature
+  this->compute_kinetic_energy();
+  this->compute_temperature();
+  // remove com motion
+  this->zero_com_velocity();
+
 }
 
 void System::compute_potential_energy_and_forces() {
   float potE = 0.0;
-  // stupid double loop
-  for (int i = 0; i < this->n_atoms; ++i) {
-    for (int j = 1; j < this->n_atoms; ++j) {
-      // update the velocity by half a time step
-
+  // double loop
+  for (int i =0; i < this->opt.num_particles - 1; ++i) {
+    Atom& a = this->atoms.at(i);
+    for (int j = i + 1; j < this->opt.num_particles; ++j) {
+      Atom& b = this->atoms.at(j);
       // calculate pairwise energy and force
-      std::tuple<float, std::array<float, 3>> pair_energy_force = this->lj_pot_force(this->atoms.at(i), this->atoms.at(j));
+      std::tuple<float, std::array<float, 3>> pair_energy_force = this->lj_pot_force(a, b);
       // add to total Energy
       potE += std::get<0>(pair_energy_force);
       // update atom A forces
-      this->atoms.at(i).Fx += std::get<1>(pair_energy_force).at(0);
-      this->atoms.at(i).Fy += std::get<1>(pair_energy_force).at(1);
-      this->atoms.at(i).Fz += std::get<1>(pair_energy_force).at(2);
+      a.Fx += std::get<1>(pair_energy_force).at(0);
+      a.Fy += std::get<1>(pair_energy_force).at(1);
+      a.Fz += std::get<1>(pair_energy_force).at(2);
       // update atom B forces
-      this->atoms.at(j).Fx -= std::get<1>(pair_energy_force).at(0);
-      this->atoms.at(j).Fy -= std::get<1>(pair_energy_force).at(1);
-      this->atoms.at(j).Fz -= std::get<1>(pair_energy_force).at(2);
+      b.Fx -= std::get<1>(pair_energy_force).at(0);
+      b.Fy -= std::get<1>(pair_energy_force).at(1);
+      b.Fz -= std::get<1>(pair_energy_force).at(2);
 
     }
   }
@@ -146,82 +143,94 @@ void System::compute_potential_energy_and_forces() {
 }
 
 void System::update_pos(float dt) {
-  for (int i = 0; i < this->n_atoms; ++i) {
-    float new_x = this->atoms.at(i).x + this->atoms.at(i).vx * dt;
-    if (new_x >= this->opt.box_dimension) {
-      new_x = new_x - this->opt.box_dimension;
-    } else if (new_x <= 0) {
+  for (Atom& a : this->atoms) {
+    float new_x = a.x + a.vx * dt;
+    while (new_x < 0) {
       new_x = new_x + this->opt.box_dimension;
     }
-    this->atoms.at(i).x = new_x;
-
-    float new_y = this->atoms.at(i).y + this->atoms.at(i).vy * dt;
-    if (new_y >= this->opt.box_dimension) {
-      new_y = new_y - this->opt.box_dimension;
-    } else if (new_y <= 0) {
+    while (new_x >= this->opt.box_dimension) {
+      new_x = new_x - this->opt.box_dimension;
+    }
+    a.x = new_x;
+    float new_y = a.y + a.vy * dt;
+    while (new_y < 0) {
       new_y = new_y + this->opt.box_dimension;
     }
-    this->atoms.at(i).y = new_y;
-
-    float new_z = this->atoms.at(i).z + this->atoms.at(i).vz * dt;
-    if (new_z >= this->opt.box_dimension) {
-      new_z = new_z - this->opt.box_dimension;
-    } else if (new_z <= 0) {
+    while (new_y >= this->opt.box_dimension) {
+      new_y = new_y - this->opt.box_dimension;
+    }
+    a.y = new_y;
+    float new_z = a.z + a.vz * dt;
+    while (new_z < 0) {
       new_z = new_z + this->opt.box_dimension;
     }
-    this->atoms.at(i).z = new_z;
+    while (new_z >= this->opt.box_dimension) {
+      new_z = new_z - this->opt.box_dimension;
+    }
+    a.z = new_z;
   }
 }
 
 void System::update_vel(float half_dt) {
+  for (Atom& a : this->atoms) {
+    a.vx += (a.Fx / this->opt.mass) * half_dt;
+    a.vy += (a.Fy / this->opt.mass) * half_dt;
+    a.vz += (a.Fz / this->opt.mass) * half_dt;
+  }
+}
 
+void System::zero_com_velocity() {
   float com_vx = 0.0;
   float com_vy = 0.0;
   float com_vz = 0.0;
-  for (int i = 0; i < this->n_atoms; ++i) {
-    this->atoms.at(i).vx += this->atoms.at(i).Fx / this->opt.mass * half_dt;
-    this->atoms.at(i).vy += this->atoms.at(i).Fy  / this->opt.mass * half_dt;
-    this->atoms.at(i).vz += this->atoms.at(i).Fz  / this->opt.mass * half_dt;
-
-    com_vx += this->atoms.at(i).vx;
-    com_vy += this->atoms.at(i).vy;
-    com_vz += this->atoms.at(i).vz;
+  for (Atom&a : this->atoms) {
+    com_vx += a.vx;
+    com_vy += a.vy;
+    com_vz += a.vz;
   }
-
-  com_vx = com_vx / this->n_atoms;
-  com_vy = com_vy / this->n_atoms;
-  com_vz = com_vz / this->n_atoms;
-
-  for (int i = 0; i < this->n_atoms; ++i) {
-    this->atoms.at(i).vx -= com_vx;
-    this->atoms.at(i).vy -= com_vy;
-    this->atoms.at(i).vz -= com_vz;
+  com_vx = com_vx / this->opt.num_particles;
+  com_vy = com_vy / this->opt.num_particles;
+  com_vz = com_vz / this->opt.num_particles;
+  
+  for (Atom&a : this->atoms) {
+    a.vx -= com_vx;
+    a.vy -= com_vy;
+    a.vz -= com_vz;
   }
+  
 }
 
 
 void System::compute_kinetic_energy() {
   float totE = 0;
   for (Atom& a : this->atoms) {
-    totE += (pow(a.vx, 2) + pow(a.vy, 2) + pow(a.vz, 2)) * this->opt.mass;
+    totE += 0.5 * (pow(a.vx, 2) + pow(a.vy, 2) + pow(a.vz, 2)) * this->opt.mass;
   }
-  totE = 0.5 * totE;
   this->kinetic_energy = totE;
 }
 
+void System::compute_temperature() {
+  this->temperature = (2 * this->kinetic_energy) / (3 * (this->opt.num_particles - 1) * 8.3144621e-3);
+}
+
+
 void System::step_forward(float dt, float half_dt) {
-  // update the velocities
+  // update the velocities to v(t + dt/2)
   this->update_vel(half_dt);
 
-  // update the positions
+  // update the positions to r(t + dt)
   this->update_pos(dt);
   
-  // update forces (accelerations)
+  // update forces and accelerations to be F(t + dt) / m = a(t + dt)
   this->compute_potential_energy_and_forces();
 
-  // update the velocities again
+  // update the velocities again to v(t + dt)
   this->update_vel(half_dt);
 
-  // compute kinetic energy
+  // remove com motion
+  this->zero_com_velocity();
+
+  // compute kinetic energy and temperature
   this->compute_kinetic_energy();
+  this->compute_temperature();
 }

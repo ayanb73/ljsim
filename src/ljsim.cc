@@ -1,11 +1,11 @@
+#include <chrono>
 #include <cmath>
 #include <iostream>
 #include <string>
-#include <chrono>
 
 #include "sim.h"
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   char delimiter = '=';
   Args cli_args;
   for (int i = 1; i < argc; ++i) {
@@ -64,25 +64,24 @@ int main(int argc, char *argv[]) {
     cli_args.box_dimension = std::cbrt(cli_args.num_particles * cli_args.sigma);
   }
 
-
   System simul_system(cli_args);
   simul_system.init_pos();
   simul_system.init_vel();
   simul_system.compute_potential_energy_and_forces();
   simul_system.compute_kinetic_energy();
 
-  float dt = 0.0025; // 2 fs
+  float dt = 0.004;  // 4 fs
   float h_dt = 0.5 * dt;
-  std::cout << "time energy\n";
-  std::cout << "0" << " " << simul_system.potential_energy + simul_system.kinetic_energy << "\n";
-  auto begin = std::chrono::high_resolution_clock::now();
   for (int i = 1; i <= simul_system.opt.num_steps; ++i) {
+    for (Atom& a : simul_system.atoms) {
+      printf("atom %i pos(%f,%f,%f) vel(%f,%f,%f) acc(%f,%f,%f) KE=%f PE=%f T=%f t=%f", a.id, a.x,
+             a.y, a.z, a.vx, a.vy, a.vz, a.Fx / simul_system.opt.mass,
+             a.Fy / simul_system.opt.mass, a.Fz / simul_system.opt.mass,
+             simul_system.kinetic_energy, simul_system.potential_energy, simul_system.temperature, (i-1)*dt);
+      printf("\n");
+    }
     simul_system.step_forward(dt, h_dt);
-    std::cout << i*dt << " " << simul_system.potential_energy + simul_system.kinetic_energy << "\n";
   }
-  auto end = std::chrono::high_resolution_clock::now();
-  auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
-  printf("Time measured: %.3f seconds.\n", elapsed.count() * 1e-9);
 
   return 0;
 };

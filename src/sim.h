@@ -34,9 +34,9 @@ class System {
  public:
   Args opt;
   std::vector<Atom> atoms;
-  int n_atoms;
   float potential_energy;
   float kinetic_energy;
+  float temperature;
   float half_box;
 
   float sigma_p12;
@@ -53,6 +53,8 @@ class System {
     Atom& a, Atom& b);  // LJ 6-12 potential
   void compute_potential_energy_and_forces();
   void compute_kinetic_energy();
+  void compute_temperature();
+  void zero_com_velocity();
 
   void step_forward(float dt, float half_dt);
 };
