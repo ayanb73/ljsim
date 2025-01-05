@@ -16,41 +16,37 @@ System::System(Args& o) {
   }
   half_box = opt.box_dimension / 2;
   sigma_p6 = pow(opt.sigma, 6);
-  sigma_p12 = pow(opt.sigma, 12);
 }
 
-std::tuple<float, std::array<float, 3>> System::lj_pot_force(Atom& a, Atom& b) {
+std::tuple<double, std::array<double, 3>> System::lj_pot_force(Atom& a, Atom& b) {
   // returns the force vector {Fx, Fy, Fz} acting on atom a
   // by newton's third law, atom b has the opposite force
 
   // calculate squared distance checking for minimum image
-  float dx = a.x - b.x;
-  float dy = a.y - b.y;
-  float dz = a.z - b.z;
+  double dx = a.x - b.x;
+  double dy = a.y - b.y;
+  double dz = a.z - b.z;
   if (dx > this->half_box) {dx -= opt.box_dimension;} else if (dx <= -this->half_box) {dx += this->opt.box_dimension;}
   if (dy > this->half_box) {dy -= opt.box_dimension;} else if (dy <= -this->half_box) {dy += this->opt.box_dimension;}
   if (dz > this->half_box) {dz -= opt.box_dimension;} else if (dz <= -this->half_box) {dz += this->opt.box_dimension;}
   
   
-  float sqd = dx*dx + dy*dy + dz*dz;
-
-  float r6 = pow(sqd, 3);
-  float r12 = r6*r6;
-  float c12 = this->sigma_p12 / r12;
-  float c6 = this->sigma_p6 / r6;
-  float potE = 4 * this->opt.epsilon * (c12 - c6);
-  float force_prefactor = 24 * this->opt.epsilon * (2 * c12 - c6) / sqd;
-  std::array<float, 3> force_vector = {force_prefactor * dx, force_prefactor * dy, force_prefactor * dz};
+  double sqd = dx*dx + dy*dy + dz*dz;
+  double r6 = pow(sqd, 3);
+  double c6 = this->sigma_p6 / r6;
+  double potE = 4 * this->opt.epsilon * (c6 - 1)*(c6);
+  double force_prefactor = 48 * this->opt.epsilon * c6 * (c6 - 0.5) / sqd;
+  std::array<double, 3> force_vector = {force_prefactor * dx, force_prefactor * dy, force_prefactor * dz};
 
   return std::make_tuple(potE, force_vector);
 }
 
 
 void System::init_pos() {
-  float min_d = 0;
+  double min_d = 0;
   int fenceposts = round(cbrt(this->opt.num_particles) + 2);
   int limit = fenceposts - 2;
-  float spacer = this->opt.box_dimension / (float)fenceposts;
+  double spacer = this->opt.box_dimension / (double)fenceposts;
   
   int k_min = pow(limit, 2);
 
@@ -77,12 +73,12 @@ void System::init_pos() {
 
 void System::init_vel() {
   // generating approx maxwell-boltzmann velocities
-  float var_mwb = sqrt(this->opt.temperature * 8.3144621e-3 / this->opt.mass);
+  double var_mwb = sqrt(this->opt.temperature * 8.3144621e-3 / this->opt.mass);
   for (Atom& a : this->atoms) {
     for (int i = 0; i < 3; ++i) {
-      float random_sum = 0;
+      double random_sum = 0;
       for (int n = 0; n < 12; ++n) {
-        random_sum += static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+        random_sum += static_cast <double> (rand()) / static_cast <double> (RAND_MAX);
       }
       random_sum -= 6.0;
       random_sum = random_sum * var_mwb;
@@ -99,8 +95,8 @@ void System::init_vel() {
 
   // compute effective temperature
   this->compute_kinetic_energy();
-  float target_E = 0.5 * 3 * (this->opt.num_particles - 1) * 8.3144621e-3 * this->opt.temperature;
-  float correction_factor = sqrt(target_E / this->kinetic_energy);
+  double target_E = 0.5 * 3 * (this->opt.num_particles - 1) * 8.3144621e-3 * this->opt.temperature;
+  double correction_factor = sqrt(target_E / this->kinetic_energy);
   
   // rescale to target temperature
   for (Atom& a : this->atoms) {
@@ -118,14 +114,19 @@ void System::init_vel() {
 }
 
 void System::compute_potential_energy_and_forces() {
-  float potE = 0.0;
+  double potE = 0.0;
+  for (Atom& a : this->atoms) {
+    a.Fx = 0.0;
+    a.Fy = 0.0;
+    a.Fz = 0.0;
+  }
   // double loop
   for (int i =0; i < this->opt.num_particles - 1; ++i) {
     Atom& a = this->atoms.at(i);
     for (int j = i + 1; j < this->opt.num_particles; ++j) {
       Atom& b = this->atoms.at(j);
       // calculate pairwise energy and force
-      std::tuple<float, std::array<float, 3>> pair_energy_force = this->lj_pot_force(a, b);
+      std::tuple<double, std::array<double, 3>> pair_energy_force = this->lj_pot_force(a, b);
       // add to total Energy
       potE += std::get<0>(pair_energy_force);
       // update atom A forces
@@ -142,9 +143,9 @@ void System::compute_potential_energy_and_forces() {
   this->potential_energy = potE;
 }
 
-void System::update_pos(float dt) {
+void System::update_pos(double dt) {
   for (Atom& a : this->atoms) {
-    float new_x = a.x + a.vx * dt;
+    double new_x = a.x + a.vx * dt;
     while (new_x < 0) {
       new_x = new_x + this->opt.box_dimension;
     }
@@ -152,7 +153,7 @@ void System::update_pos(float dt) {
       new_x = new_x - this->opt.box_dimension;
     }
     a.x = new_x;
-    float new_y = a.y + a.vy * dt;
+    double new_y = a.y + a.vy * dt;
     while (new_y < 0) {
       new_y = new_y + this->opt.box_dimension;
     }
@@ -160,7 +161,7 @@ void System::update_pos(float dt) {
       new_y = new_y - this->opt.box_dimension;
     }
     a.y = new_y;
-    float new_z = a.z + a.vz * dt;
+    double new_z = a.z + a.vz * dt;
     while (new_z < 0) {
       new_z = new_z + this->opt.box_dimension;
     }
@@ -171,7 +172,7 @@ void System::update_pos(float dt) {
   }
 }
 
-void System::update_vel(float half_dt) {
+void System::update_vel(double half_dt) {
   for (Atom& a : this->atoms) {
     a.vx += (a.Fx / this->opt.mass) * half_dt;
     a.vy += (a.Fy / this->opt.mass) * half_dt;
@@ -180,9 +181,9 @@ void System::update_vel(float half_dt) {
 }
 
 void System::zero_com_velocity() {
-  float com_vx = 0.0;
-  float com_vy = 0.0;
-  float com_vz = 0.0;
+  double com_vx = 0.0;
+  double com_vy = 0.0;
+  double com_vz = 0.0;
   for (Atom&a : this->atoms) {
     com_vx += a.vx;
     com_vy += a.vy;
@@ -202,7 +203,7 @@ void System::zero_com_velocity() {
 
 
 void System::compute_kinetic_energy() {
-  float totE = 0;
+  double totE = 0;
   for (Atom& a : this->atoms) {
     totE += 0.5 * (pow(a.vx, 2) + pow(a.vy, 2) + pow(a.vz, 2)) * this->opt.mass;
   }
@@ -214,9 +215,9 @@ void System::compute_temperature() {
 }
 
 
-void System::step_forward(float dt, float half_dt) {
+void System::step_forward(double dt) {
   // update the velocities to v(t + dt/2)
-  this->update_vel(half_dt);
+  this->update_vel(0.5*dt);
 
   // update the positions to r(t + dt)
   this->update_pos(dt);
@@ -225,7 +226,7 @@ void System::step_forward(float dt, float half_dt) {
   this->compute_potential_energy_and_forces();
 
   // update the velocities again to v(t + dt)
-  this->update_vel(half_dt);
+  this->update_vel(0.5*dt);
 
   // remove com motion
   this->zero_com_velocity();
@@ -233,4 +234,8 @@ void System::step_forward(float dt, float half_dt) {
   // compute kinetic energy and temperature
   this->compute_kinetic_energy();
   this->compute_temperature();
+}
+
+void System::report() {
+  printf("KE=%f PE=%f E=%f T=%f\n", this->kinetic_energy, this->potential_energy, this->kinetic_energy + this->potential_energy, this->temperature);
 }

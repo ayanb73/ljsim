@@ -1,7 +1,4 @@
 {
-    "editor.tabSize": 2,
-    "editor.insertSpaces": true,
-    
     "files.associations": {
         "__bit_reference": "cpp",
         "__hash_table": "cpp",

@@ -70,18 +70,12 @@ int main(int argc, char* argv[]) {
   simul_system.compute_potential_energy_and_forces();
   simul_system.compute_kinetic_energy();
 
-  float dt = 0.004;  // 4 fs
-  float h_dt = 0.5 * dt;
+  double dt = 0.002;  // 2 fs
+  double h_dt = 0.5 * dt;
+  simul_system.report();
   for (int i = 1; i <= simul_system.opt.num_steps; ++i) {
-    for (Atom& a : simul_system.atoms) {
-      printf("atom %i pos(%f,%f,%f) vel(%f,%f,%f) acc(%f,%f,%f) KE=%f PE=%f T=%f t=%f", a.id, a.x,
-             a.y, a.z, a.vx, a.vy, a.vz, a.Fx / simul_system.opt.mass,
-             a.Fy / simul_system.opt.mass, a.Fz / simul_system.opt.mass,
-             simul_system.kinetic_energy, simul_system.potential_energy, simul_system.temperature, (i-1)*dt);
-      printf("\n");
-    }
-    simul_system.step_forward(dt, h_dt);
+    simul_system.step_forward(dt);
+    simul_system.report();
   }
-
   return 0;
 };
