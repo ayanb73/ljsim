@@ -2,12 +2,13 @@
 #include <array>
 #include <tuple>
 #include <iostream>
+#include <random>
 
 #include "sim.h"
 
 /* Defining the System class methods */
 
-System::System(Args& o) {
+System::System(Args& o, int seed) {
   opt = o;
   for (int i = 0; i < o.num_particles; ++i) {
     Atom new_atom;
@@ -16,6 +17,30 @@ System::System(Args& o) {
   }
   half_box = opt.box_dimension / 2;
   sigma_p6 = pow(opt.sigma, 6);
+  degrees_freedom = 3*o.num_particles - 3;
+  temperature_coupling = 0.1;
+  // our target kinetic energy K-bar
+  K_bar = 0.5 * this->degrees_freedom * 8.3144621e-3 * this->opt.temperature;
+
+  RNG = std::mt19937(seed);
+  NORMAL = std::normal_distribution<double>();
+  if (degrees_freedom % 2 == 1) {
+    GAMMA = std::gamma_distribution<double>((degrees_freedom - 1)/2,1);
+  } else {
+    GAMMA = std::gamma_distribution<double>((degrees_freedom - 2)/2,1);
+  }
+}
+
+double System::generate_normal() {
+  return this->NORMAL(this->RNG);
+}
+
+double System::generate_gamma() {
+  if (this->degrees_freedom % 2 == 1) {
+    return this->GAMMA(this->RNG);
+  } else {
+    return this->GAMMA(this->RNG) + pow(this->generate_normal(),2);
+  }
 }
 
 std::tuple<double, std::array<double, 3>> System::lj_pot_force(Atom& a, Atom& b) {
@@ -95,8 +120,7 @@ void System::init_vel() {
 
   // compute effective temperature
   this->compute_kinetic_energy();
-  double target_E = 0.5 * 3 * (this->opt.num_particles - 1) * 8.3144621e-3 * this->opt.temperature;
-  double correction_factor = sqrt(target_E / this->kinetic_energy);
+  double correction_factor = sqrt(this->K_bar / this->kinetic_energy);
   
   // rescale to target temperature
   for (Atom& a : this->atoms) {
@@ -211,9 +235,35 @@ void System::compute_kinetic_energy() {
 }
 
 void System::compute_temperature() {
-  this->temperature = (2 * this->kinetic_energy) / (3 * (this->opt.num_particles - 1) * 8.3144621e-3);
+  this->temperature = (2 * this->kinetic_energy) / (this->degrees_freedom * 8.3144621e-3);
 }
 
+void System::update_thermostat(double dt) {
+  // stochastic velocity reschaling according to Bussi, Donadio, and Parinello
+  // update^2 = exp(-dt/tau) + K-bar / (N_df*K) * (1 - exp(-dt/tau))(rand_normal^2 + rand_gamma) 
+  //            + 2*exp(-dt/(2*tau))*sqrt(K-bar / (N_df*K) * (1 - exp(-dt/tau)))*rand_normal
+  
+  // exp decay terms in the update equation
+  double exp_decay = exp(-dt / this->temperature_coupling);
+  double exp_decay_sqrt = exp(-dt / (2 * this->temperature_coupling));
+  // calc some more factors
+  double int_product = (this->K_bar / (this->degrees_freedom * this->kinetic_energy)) * (1 - exp_decay);
+
+  // generate a gaussian (roughly) w/ the Irwin-Hall approach
+  double rand_normal = this->generate_normal();
+  double rand_normal_sq = rand_normal * rand_normal;
+  double rand_gamma = this->generate_gamma();
+
+  // evaluate the update factor
+  double update_sq = exp_decay + int_product*(rand_normal_sq + rand_gamma) + 2*exp_decay_sqrt*sqrt(int_product)* rand_normal;
+  double update = sqrt(update_sq);
+
+  for (Atom& a: this->atoms) {
+    a.vx = a.vx * update;
+    a.vy = a.vy * update;
+    a.vz = a.vz * update;
+  }
+}
 
 void System::step_forward(double dt) {
   // update the velocities to v(t + dt/2)
@@ -231,11 +281,17 @@ void System::step_forward(double dt) {
   // remove com motion
   this->zero_com_velocity();
 
-  // compute kinetic energy and temperature
+  // compute kinetic energy
   this->compute_kinetic_energy();
+
+  // update the thermostat
+  this->update_thermostat(dt);
+
+  // compute the temperature
   this->compute_temperature();
 }
 
 void System::report() {
   printf("KE=%f PE=%f E=%f T=%f\n", this->kinetic_energy, this->potential_energy, this->kinetic_energy + this->potential_energy, this->temperature);
 }
+

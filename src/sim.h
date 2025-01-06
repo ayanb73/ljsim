@@ -5,6 +5,8 @@
 #include <string>
 #include <tuple>
 #include <vector>
+#include <random>
+
 
 struct Args {
   int num_particles = 0;
@@ -38,15 +40,17 @@ class System {
   double kinetic_energy;
   double temperature;
   double half_box;
-
-  double sigma_p12;
+  double temperature_coupling;
+  double K_bar;
+  int degrees_freedom;
   double sigma_p6;
+  std::mt19937 RNG;
+  std::normal_distribution<double> NORMAL;
+  std::gamma_distribution<double> GAMMA;
 
-  System(Args& o);
+  System(Args& o, int seed);
   void init_pos();
   void init_vel();
-  
-  
   void update_pos(double dt);
   void update_vel(double half_dt);
   std::tuple<double, std::array<double, 3>> lj_pot_force(
@@ -54,10 +58,14 @@ class System {
   void compute_potential_energy_and_forces();
   void compute_kinetic_energy();
   void compute_temperature();
+  void update_thermostat(double target_T);
   void zero_com_velocity();
 
   void step_forward(double dt);
   void report();
+
+  double generate_normal();
+  double generate_gamma();
 };
 
 #endif

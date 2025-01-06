@@ -64,7 +64,7 @@ int main(int argc, char* argv[]) {
     cli_args.box_dimension = std::cbrt(cli_args.num_particles * cli_args.sigma);
   }
 
-  System simul_system(cli_args);
+  System simul_system(cli_args, 0);
   simul_system.init_pos();
   simul_system.init_vel();
   simul_system.compute_potential_energy_and_forces();
